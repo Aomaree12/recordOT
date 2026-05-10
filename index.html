@@ -7,15 +7,12 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
   <style>
     body { background-color: #f8fafc; font-family: 'Sarabun', sans-serif; overflow-x: hidden; }
     .calendar-card { background: white; border-radius: 1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.05); width: 100%; }
-    
-    /* ปรับ Grid ไม่ให้ทะลุจอมือถือ */
     .calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); width: 100%; }
     
-    /* ลดความสูงเซลล์และลด padding ในมือถือ */
     .cell { min-height: 85px; border: 1px solid #e2e8f0; cursor: pointer; transition: 0.2s; padding: 2px; overflow: hidden;}
     @media (min-width: 768px) { .cell { min-height: 120px; padding: 6px; } }
     
@@ -23,7 +20,6 @@
     .cell.today { background-color: #f0fdfa; border: 2px solid #0d9488 !important; }
     .cell.weekend { background-color: #f8fafc; }
     
-    /* ป้ายชื่อในตารางให้เล็กลง และไม่ดันให้ตารางขยาย */
     .event-badge { 
       font-size: 9px; padding: 3px 4px; border-radius: 6px; margin-bottom: 2px; 
       line-height: 1.3; display: block; text-align: left; 
@@ -33,6 +29,10 @@
     
     .modal-close { cursor: pointer; transition: 0.3s; }
     .modal-close:hover { color: #f43f5e; transform: rotate(90deg); }
+
+    /* Custom scrollbar for modal */
+    .custom-scroll::-webkit-scrollbar { width: 5px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
   </style>
 </head>
 <body class="p-2 md:p-4 pb-20 w-full">
@@ -77,17 +77,19 @@
   <div id="viewModal" class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm hidden items-center justify-center p-2">
     <div class="bg-white rounded-[1.5rem] w-full max-w-md shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]">
       <div class="absolute top-4 right-4 text-2xl text-slate-400 modal-close z-10" onclick="closeModal('viewModal')">&times;</div>
-      <div class="p-6 overflow-y-auto w-full" id="viewContent"></div>
+      <div class="p-6 overflow-y-auto custom-scroll w-full" id="viewContent"></div>
     </div>
   </div>
 
   <div id="editModal" class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm hidden items-center justify-center p-2">
     <div class="bg-white rounded-[1.5rem] w-full max-w-lg shadow-2xl relative overflow-hidden flex flex-col max-h-[95vh]">
       <div class="absolute top-4 right-4 text-2xl text-slate-400 modal-close z-10" onclick="closeModal('editModal')">&times;</div>
-      <div class="p-6 overflow-y-auto w-full">
-        <h3 class="text-xl font-black text-slate-800 mb-4">บันทึกเบิกค่าตอบแทน (OT)</h3>
+      <div class="p-6 overflow-y-auto custom-scroll w-full">
+        <h3 class="text-xl font-black text-slate-800 mb-4" id="modalTitle">ลงบันทึกเบิก OT</h3>
         <form id="otForm" onsubmit="handleSave(event)" class="grid grid-cols-2 gap-3">
           
+          <input type="hidden" id="f_rowIndex"> <input type="hidden" id="v_file1"> <input type="hidden" id="v_file2">
+
           <div class="col-span-2">
             <label class="text-[10px] font-bold text-slate-500 ml-1 block">วันที่</label>
             <input type="date" id="f_date_raw" onchange="updateThaiDateDisplay()" required class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-teal-500">
@@ -96,9 +98,7 @@
           
           <div class="col-span-2">
             <label class="text-[10px] font-bold text-slate-500 ml-1 block">พยาบาลผู้เบิก</label>
-            <select id="f_name" required class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-teal-500 font-bold">
-              <option value="">กำลังโหลดรายชื่อ...</option>
-            </select>
+            <select id="f_name" required class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-teal-500 font-bold text-slate-700"></select>
           </div>
           
           <div class="col-span-2">
@@ -112,20 +112,33 @@
           
           <div>
             <label class="text-[10px] font-bold text-slate-500 ml-1 block">เวลามา</label>
-            <input type="time" id="f_timeIn" required class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-teal-500">
+            <input type="time" lang="th-TH" id="f_timeIn" oninput="calculateTotal()" required class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-teal-500 font-bold">
           </div>
           <div>
             <label class="text-[10px] font-bold text-slate-500 ml-1 block">เวลากลับ</label>
-            <input type="time" id="f_timeOut" required class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-teal-500">
+            <input type="time" lang="th-TH" id="f_timeOut" oninput="calculateTotal()" required class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-teal-500 font-bold">
+          </div>
+
+          <div class="col-span-2 bg-teal-50 border border-teal-200 rounded-xl p-3 flex justify-between items-center mt-1">
+            <div>
+              <p class="text-[10px] text-teal-600 font-bold uppercase">รวมเวลาปฏิบัติงาน</p>
+              <p class="text-xl font-black text-teal-800" id="display_totalTime">0.00 ชม.</p>
+            </div>
+            <div class="text-right">
+              <p class="text-[10px] text-rose-500 font-bold uppercase">รวมเงินเบิกได้</p>
+              <p class="text-xl font-black text-rose-600" id="display_totalMoney">฿0.00</p>
+            </div>
           </div>
           
           <div class="col-span-2 border-t border-slate-100 pt-3 mt-1">
-            <label class="text-[10px] font-bold text-rose-500 ml-1 block"><i class="fas fa-file-upload"></i> ไฟล์เคสที่ 1</label>
+            <label class="text-[10px] font-bold text-rose-500 ml-1 block"><i class="fas fa-file-upload"></i> อัปโหลดเอกสารเคสที่ 1 ใหม่ (ถ้ามี)</label>
             <input type="file" id="f_file1" class="w-full text-xs text-slate-500 cursor-pointer bg-slate-50 rounded-lg p-2 border border-slate-200">
+            <p id="file1_status" class="text-[9px] text-teal-600 mt-1 hidden"><i class="fas fa-check-circle"></i> มีไฟล์เดิมอยู่แล้ว</p>
           </div>
           <div class="col-span-2">
-            <label class="text-[10px] font-bold text-rose-500 ml-1 block"><i class="fas fa-file-upload"></i> ไฟล์เคสที่ 2</label>
+            <label class="text-[10px] font-bold text-rose-500 ml-1 block"><i class="fas fa-file-upload"></i> อัปโหลดเอกสารเคสที่ 2 ใหม่ (ถ้ามี)</label>
             <input type="file" id="f_file2" class="w-full text-xs text-slate-500 cursor-pointer bg-slate-50 rounded-lg p-2 border border-slate-200">
+            <p id="file2_status" class="text-[9px] text-teal-600 mt-1 hidden"><i class="fas fa-check-circle"></i> มีไฟล์เดิมอยู่แล้ว</p>
           </div>
 
           <button type="submit" class="col-span-2 mt-2 w-full bg-teal-600 text-white font-bold py-3 rounded-lg shadow-md hover:bg-teal-700 transition-all flex justify-center items-center gap-2 text-sm">
@@ -252,8 +265,13 @@
         evs.forEach(ev => {
           let colors = getColorForName(ev.name);
           html += `
-          <div class="p-4 rounded-2xl ${colors.bg} border ${colors.border} mb-3 shadow-sm">
-            <p class="font-bold text-base ${colors.text}">${ev.name}</p>
+          <div class="p-4 rounded-2xl ${colors.bg} border ${colors.border} mb-3 shadow-sm relative">
+            
+            <button onclick="editEntry(${ev.rowIndex})" class="absolute top-3 right-3 w-8 h-8 rounded-full bg-white text-teal-600 shadow-md flex justify-center items-center hover:bg-teal-50 transition-all text-xs">
+              <i class="fas fa-edit"></i>
+            </button>
+
+            <p class="font-bold text-base ${colors.text} pr-8">${ev.name}</p>
             <div class="mt-2 grid grid-cols-2 gap-2 text-[10px] text-slate-600 bg-white/60 p-2 rounded-xl">
               <div><span class="text-slate-400 block">เวร</span><span class="font-bold text-slate-700">${ev.shift}</span></div>
               <div><span class="text-slate-400 block">เวลา</span><span class="font-bold text-slate-700">${ev.timeIn || '-'} น. ถึง ${ev.timeOut || '-'} น.</span></div>
@@ -274,14 +292,81 @@
     function openEditForm() {
       const vY = currentViewDate.getFullYear(), vM = String(currentViewDate.getMonth() + 1).padStart(2, '0');
       document.getElementById('otForm').reset();
+      document.getElementById('modalTitle').innerText = "ลงบันทึกเบิก OT (ใหม่)";
+      document.getElementById('f_rowIndex').value = ""; // เคลียร์แถว
+      document.getElementById('v_file1').value = "";
+      document.getElementById('v_file2').value = "";
+      document.getElementById('file1_status').classList.add('hidden');
+      document.getElementById('file2_status').classList.add('hidden');
+      
       document.getElementById('f_date_raw').value = `${vY}-${vM}-01`; 
       updateThaiDateDisplay(); 
+      calculateTotal(); // รีเซ็ตกล่องคำนวณ
+      openModal('editModal');
+    }
+
+    // ฟังก์ชันดึงข้อมูลมาแก้ไข
+    function editEntry(rowIndex) {
+      closeModal('viewModal'); // ปิดหน้าต่าง View ก่อน
+      
+      const ev = otData.find(d => d.rowIndex == rowIndex);
+      if(!ev) return;
+
+      document.getElementById('modalTitle').innerText = "แก้ไขข้อมูล OT";
+      document.getElementById('f_rowIndex').value = ev.rowIndex;
+      
+      // แปลงวันที่ไทยกลับไปเป็น YYYY-MM-DD เพื่อแสดงใน Input Date
+      const dObj = parseThaiDate(ev.date);
+      if (dObj) {
+        const mm = String(dObj.getMonth() + 1).padStart(2, '0');
+        const dd = String(dObj.getDate()).padStart(2, '0');
+        document.getElementById('f_date_raw').value = `${dObj.getFullYear()}-${mm}-${dd}`;
+      }
+      updateThaiDateDisplay();
+
+      document.getElementById('f_name').value = ev.name;
+      document.getElementById('f_shift').value = ev.shift;
+      document.getElementById('f_timeIn').value = ev.timeIn;
+      document.getElementById('f_timeOut').value = ev.timeOut;
+      
+      // เก็บลิงก์ไฟล์เก่าไว้
+      document.getElementById('v_file1').value = ev.file1 || "";
+      document.getElementById('v_file2').value = ev.file2 || "";
+      
+      document.getElementById('file1_status').classList.toggle('hidden', !ev.file1);
+      document.getElementById('file2_status').classList.toggle('hidden', !ev.file2);
+
+      calculateTotal(); // คำนวณยอดใหม่ให้เห็น
       openModal('editModal');
     }
 
     function updateThaiDateDisplay() {
       const val = document.getElementById('f_date_raw').value; if(!val) return;
       const d = new Date(val); document.getElementById('f_date_thai').value = `${d.getDate()} ${thaiMonths[d.getMonth()]} ${d.getFullYear() + 543}`;
+    }
+
+    // ฟังก์ชันคำนวณเวลาและเงินสดๆ ในหน้าฟอร์ม
+    function calculateTotal() {
+      let tIn = document.getElementById('f_timeIn').value;
+      let tOut = document.getElementById('f_timeOut').value;
+      
+      if(tIn && tOut) {
+        let [h1, m1] = tIn.split(':').map(Number);
+        let [h2, m2] = tOut.split(':').map(Number);
+        let d1 = new Date(2000, 0, 1, h1, m1);
+        let d2 = new Date(2000, 0, 1, h2, m2);
+        
+        if (d2 < d1) d2.setDate(d2.getDate() + 1); // กรณีทำข้ามคืน
+        
+        let totalTime = (d2 - d1) / (1000 * 60 * 60);
+        let totalMoney = totalTime * 81.25;
+
+        document.getElementById('display_totalTime').innerText = totalTime.toFixed(2) + " ชม.";
+        document.getElementById('display_totalMoney').innerText = "฿" + totalMoney.toLocaleString('th-TH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+      } else {
+        document.getElementById('display_totalTime').innerText = "0.00 ชม.";
+        document.getElementById('display_totalMoney').innerText = "฿0.00";
+      }
     }
 
     const toBase64 = file => new Promise((resolve, reject) => {
@@ -294,7 +379,6 @@
     async function handleSave(e) {
       e.preventDefault();
       
-      // การคำนวณเวลาและเงินก่อนส่งไปยัง Sheet
       let tIn = document.getElementById('f_timeIn').value;
       let tOut = document.getElementById('f_timeOut').value;
       let totalTime = 0, totalMoney = 0;
@@ -304,20 +388,18 @@
         let [h2, m2] = tOut.split(':').map(Number);
         let d1 = new Date(2000, 0, 1, h1, m1);
         let d2 = new Date(2000, 0, 1, h2, m2);
-        
-        // ถ้าเวลาออกน้อยกว่าเวลาเข้า แปลว่าข้ามไปอีกวัน
         if (d2 < d1) d2.setDate(d2.getDate() + 1);
-        
         totalTime = (d2 - d1) / (1000 * 60 * 60);
         totalMoney = totalTime * 81.25;
       }
 
-      Swal.fire({ title: 'กำลังบันทึกและอัปโหลด', html: 'กรุณารอสักครู่...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      Swal.fire({ title: 'กำลังบันทึก...', html: 'รอสักครู่ ระบบกำลังประมวลผล', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
       
       const f1 = document.getElementById('f_file1').files[0];
       const f2 = document.getElementById('f_file2').files[0];
 
       const payload = { 
+        rowIndex: document.getElementById('f_rowIndex').value, // ส่ง rowIndex กลับไปด้วย (เพื่อบอกว่าเป็นการแก้ไข)
         date: document.getElementById('f_date_thai').value, 
         name: document.getElementById('f_name').value, 
         shift: document.getElementById('f_shift').value,
@@ -325,6 +407,8 @@
         timeOut: tOut,
         totalTime: totalTime > 0 ? totalTime.toFixed(2) : "",
         totalMoney: totalMoney > 0 ? totalMoney.toFixed(2) : "",
+        file1: document.getElementById('v_file1').value, // ส่งลิงก์ไฟล์เก่ากลับไป
+        file2: document.getElementById('v_file2').value,
         file1Data: f1 ? await toBase64(f1) : null,
         file1Name: f1 ? f1.name : "",
         file2Data: f2 ? await toBase64(f2) : null,
