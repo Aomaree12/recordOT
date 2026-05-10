@@ -1,50 +1,298 @@
-<div id="editModal" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-md hidden items-center justify-center p-4">
-  <div class="bg-white rounded-[2.5rem] w-full max-w-lg shadow-2xl relative overflow-y-auto max-h-[90vh]">
-    <div class="absolute top-6 right-8 text-3xl text-slate-300 modal-close" onclick="closeModal('editModal')">&times;</div>
-    <div class="p-8">
-      <h3 class="text-2xl font-black text-slate-800 mb-6">บันทึกเบิกค่าตอบแทน (OT)</h3>
-      <form onsubmit="handleSave(event)" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="md:col-span-2">
-          <label class="text-xs font-bold text-teal-600 uppercase ml-1">วันที่ปฏิบัติงาน</label>
-          <input type="date" id="f_date_raw" onchange="updateThaiDateDisplay()" required class="w-full bg-slate-50 border-2 border-teal-50 rounded-xl px-4 py-3 outline-none">
-          <input type="hidden" id="f_date_thai">
-        </div>
-        <div>
-          <label class="text-xs font-bold text-teal-600 uppercase ml-1">ชื่อพยาบาล</label>
-          <select id="f_name" required class="w-full bg-slate-50 border-2 border-teal-50 rounded-xl px-4 py-3 outline-none">
-            <option value="อ้อมอารีย์ พุทธาวันดี">อ้อมอารีย์ พุทธาวันดี</option>
-            <option value="สุกัญญา สวัสดิวงศ์">สุกัญญา สวัสดิวงศ์</option>
-          </select>
-        </div>
-        <div>
-          <label class="text-xs font-bold text-teal-600 uppercase ml-1">เวร</label>
-          <select id="f_shift" class="w-full bg-slate-50 border-2 border-teal-50 rounded-xl px-4 py-3 outline-none">
-            <option value="เช้า">เช้า</option><option value="บ่าย">บ่าย</option><option value="ดึก">ดึก</option>
-          </select>
-        </div>
-        <div>
-          <label class="text-xs font-bold text-teal-600 uppercase ml-1">เวลามา</label>
-          <input type="time" id="f_timeIn" class="w-full bg-slate-50 border-2 border-teal-50 rounded-xl px-4 py-3 outline-none">
-        </div>
-        <div>
-          <label class="text-xs font-bold text-teal-600 uppercase ml-1">เวลากลับ</label>
-          <input type="time" id="f_timeOut" class="w-full bg-slate-50 border-2 border-teal-50 rounded-xl px-4 py-3 outline-none">
-        </div>
-        
-        <div class="md:col-span-2 border-t pt-4 mt-2">
-          <label class="text-xs font-bold text-rose-500 uppercase ml-1">แนบไฟล์เคสที่ 1 (PDF/รูปภาพ)</label>
-          <input type="file" id="f_file1" class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100">
-          <input type="hidden" id="v_file1">
-        </div>
-        
-        <div class="md:col-span-2">
-          <label class="text-xs font-bold text-rose-500 uppercase ml-1">แนบไฟล์เคสที่ 2 (PDF/รูปภาพ)</label>
-          <input type="file" id="f_file2" class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100">
-          <input type="hidden" id="v_file2">
-        </div>
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ระบบบันทึกและเบิก OT พยาบาล</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
+  <style>
+    body { background-color: #f0fdfa; font-family: 'Sarabun', sans-serif; }
+    .calendar-card { background: white; border-radius: 2rem; box-shadow: 0 10px 25px rgba(20,184,166,0.15); }
+    .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
+    
+    .cell { min-height: 110px; border: 2px solid #2dd4bf; position: relative; cursor: pointer; transition: 0.2s; }
+    @media (min-width: 768px) { .cell { min-height: 150px; } }
+    
+    .cell:hover { background-color: #e0f2f1; z-index: 5; }
+    .cell.today { background-color: #f0fdfa; border: 4px solid #0d9488 !important; }
+    .cell.weekend { background-color: #f1f5f9; border-color: #99f6e4; }
 
-        <button type="submit" class="md:col-span-2 mt-4 bg-teal-600 text-white font-black py-4 rounded-2xl shadow-xl hover:bg-teal-700 transition-all">บันทึกและอัปโหลดไฟล์</button>
-      </form>
+    .badge-sukanya { border-left: 5px solid #f472b6; background: #fdf2f8; color: #be185d; }
+    .badge-oomaree { border-left: 5px solid #3b82f6; background: #eff6ff; color: #1d4ed8; }
+    
+    .event-badge { font-size: 11px; padding: 4px 6px; border-radius: 8px; margin-bottom: 4px; font-weight: 600; line-height: 1.2; display: block; text-align: left;}
+    @media (min-width: 768px) { .event-badge { font-size: 13px; } }
+    
+    .modal-close { cursor: pointer; transition: 0.3s; }
+    .modal-close:hover { color: #f43f5e; transform: rotate(90deg); }
+  </style>
+</head>
+<body class="p-2 md:p-6 pb-20">
+
+  <div class="max-w-6xl mx-auto">
+    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+      <div class="flex items-center gap-4">
+        <div class="bg-teal-600 w-12 h-12 rounded-2xl flex items-center justify-center text-white text-xl shadow-lg">
+          <i class="fas fa-file-invoice-dollar"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold text-slate-800">ระบบบันทึกและเบิก OT</h1>
+          <p class="text-xs text-teal-600 font-bold" id="currentDateDisplay"></p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 bg-white p-2 rounded-2xl shadow-sm border-2 border-teal-200">
+        <button onclick="changeMonth(-1)" class="w-10 h-10 rounded-xl hover:bg-teal-100 flex items-center justify-center text-teal-600"><i class="fas fa-chevron-left"></i></button>
+        <h2 id="monthTitle" class="text-lg font-bold text-slate-700 min-w-[150px] text-center uppercase">...</h2>
+        <button onclick="changeMonth(1)" class="w-10 h-10 rounded-xl hover:bg-teal-100 flex items-center justify-center text-teal-600"><i class="fas fa-chevron-right"></i></button>
+        <div class="h-6 w-[2px] bg-teal-100 mx-2"></div>
+        <button onclick="openEditForm()" class="bg-teal-600 hover:bg-teal-700 text-white px-5 py-2 rounded-xl text-sm font-bold flex items-center gap-2">
+          <i class="fas fa-plus"></i> บันทึก OT
+        </button>
+      </div>
+    </div>
+
+    <div class="calendar-card overflow-hidden border-2 border-teal-200">
+      <div class="calendar-grid bg-teal-50 border-b-2 border-teal-200">
+        <div class="py-4 text-center text-xs font-black text-slate-500 uppercase">จันทร์</div>
+        <div class="py-4 text-center text-xs font-black text-slate-500 uppercase">อังคาร</div>
+        <div class="py-4 text-center text-xs font-black text-slate-500 uppercase">พุธ</div>
+        <div class="py-4 text-center text-xs font-black text-slate-500 uppercase">พฤหัสบดี</div>
+        <div class="py-4 text-center text-xs font-black text-slate-500 uppercase">ศุกร์</div>
+        <div class="py-4 text-center text-xs font-black text-indigo-500 uppercase">เสาร์</div>
+        <div class="py-4 text-center text-xs font-black text-rose-500 uppercase">อาทิตย์</div>
+      </div>
+      <div id="calendarDays" class="calendar-grid"></div>
     </div>
   </div>
-</div>
+
+  <div id="viewModal" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-md hidden items-center justify-center p-4">
+    <div class="bg-white rounded-[3rem] w-full max-w-md shadow-2xl relative overflow-hidden max-h-[90vh] flex flex-col">
+      <div class="absolute top-6 right-8 text-3xl text-slate-300 modal-close z-10" onclick="closeModal('viewModal')">&times;</div>
+      <div class="p-8 overflow-y-auto" id="viewContent"></div>
+    </div>
+  </div>
+
+  <div id="editModal" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-md hidden items-center justify-center p-4">
+    <div class="bg-white rounded-[3rem] w-full max-w-xl shadow-2xl relative overflow-hidden flex flex-col max-h-[95vh]">
+      <div class="absolute top-6 right-8 text-3xl text-slate-300 modal-close z-10" onclick="closeModal('editModal')">&times;</div>
+      <div class="p-8 overflow-y-auto">
+        <h3 class="text-2xl font-black text-slate-800 mb-6">บันทึกเบิกค่าตอบแทน (OT)</h3>
+        <form id="otForm" onsubmit="handleSave(event)" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="md:col-span-2">
+            <label class="text-xs font-bold text-teal-600 uppercase ml-2 mb-1 block">วันที่ปฏิบัติงาน</label>
+            <input type="date" id="f_date_raw" onchange="updateThaiDateDisplay()" required class="w-full bg-slate-50 border-2 border-teal-50 rounded-2xl px-5 py-3 focus:border-teal-500 outline-none font-bold">
+            <input type="hidden" id="f_date_thai">
+          </div>
+          <div class="md:col-span-2">
+            <label class="text-xs font-bold text-teal-600 uppercase ml-2 mb-1 block">พยาบาลผู้เบิก</label>
+            <select id="f_name" required class="w-full bg-slate-50 border-2 border-teal-50 rounded-2xl px-5 py-3 outline-none font-bold">
+              <option value="อ้อมอารีย์ พุทธาวันดี">อ้อมอารีย์ พุทธาวันดี</option>
+              <option value="สุกัญญา สวัสดิวงศ์">สุกัญญา สวัสดิวงศ์</option>
+            </select>
+          </div>
+          <div class="md:col-span-2">
+            <label class="text-xs font-bold text-teal-600 uppercase ml-2 mb-1 block">เวรที่ขึ้น</label>
+            <select id="f_shift" class="w-full bg-slate-50 border-2 border-teal-50 rounded-2xl px-5 py-3 outline-none font-bold">
+              <option value="เช้า">เช้า</option>
+              <option value="บ่าย">บ่าย</option>
+              <option value="ดึก">ดึก</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-bold text-teal-600 uppercase ml-2 mb-1 block">เวลามา</label>
+            <input type="time" id="f_timeIn" class="w-full bg-slate-50 border-2 border-teal-50 rounded-2xl px-5 py-3 outline-none font-bold">
+          </div>
+          <div>
+            <label class="text-xs font-bold text-teal-600 uppercase ml-2 mb-1 block">เวลากลับ</label>
+            <input type="time" id="f_timeOut" class="w-full bg-slate-50 border-2 border-teal-50 rounded-2xl px-5 py-3 outline-none font-bold">
+          </div>
+          
+          <div class="md:col-span-2 border-t-2 border-dashed border-teal-100 pt-4 mt-2">
+            <label class="text-xs font-bold text-rose-500 uppercase ml-2 mb-1 block"><i class="fas fa-file-upload"></i> แนบเอกสารเคสที่ 1</label>
+            <input type="file" id="f_file1" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 cursor-pointer bg-slate-50 rounded-2xl p-2 border-2 border-teal-50">
+          </div>
+          <div class="md:col-span-2">
+            <label class="text-xs font-bold text-rose-500 uppercase ml-2 mb-1 block"><i class="fas fa-file-upload"></i> แนบเอกสารเคสที่ 2</label>
+            <input type="file" id="f_file2" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 cursor-pointer bg-slate-50 rounded-2xl p-2 border-2 border-teal-50">
+          </div>
+
+          <button type="submit" class="md:col-span-2 mt-4 w-full bg-teal-600 text-white font-black py-4 rounded-3xl shadow-xl hover:bg-teal-700 transition-all text-lg flex justify-center items-center gap-2">
+            <i class="fas fa-cloud-upload-alt"></i> บันทึกและอัปโหลดไฟล์
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ==========================================
+    // 🔴 1. วาง URL Web App ของคุณในบรรทัดนี้!
+    // ==========================================
+    const API_URL = "https://script.google.com/macros/s/AKfycbzXxyPyvQ-5ulN_ZyJeOZbTHdYVOIz53TnxWtlbdiFSgQtBZdPpR8__EGjCQgeokAhmKg/exec"; 
+    // ==========================================
+
+    const thaiMonths = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+    let otData = [], currentViewDate = new Date();
+
+    window.onload = () => { fetchData(); updateHeaderDate(); };
+    function updateHeaderDate() {
+      const now = new Date();
+      document.getElementById('currentDateDisplay').innerText = `วันนี้: ${now.getDate()} ${thaiMonths[now.getMonth()]} ${now.getFullYear() + 543}`;
+    }
+
+    async function fetchData() {
+      if(!API_URL.includes("script.google.com")) {
+        Swal.fire("แจ้งเตือน", "กรุณาใส่ลิงก์ API_URL ในโค้ดก่อนใช้งาน", "error"); return;
+      }
+      Swal.fire({ title: 'กำลังโหลดข้อมูล...', didOpen: () => Swal.showLoading() });
+      try {
+        const response = await fetch(API_URL + "?action=getData");
+        otData = await response.json();
+        renderCalendar(); 
+        Swal.close();
+      } catch (error) {
+        Swal.fire("เชื่อมต่อล้มเหลว", "ไม่สามารถดึงข้อมูลได้", "error");
+      }
+    }
+
+    function parseThaiDate(dateStr) {
+      if (!dateStr) return null;
+      const parts = dateStr.trim().split(/\s+/);
+      if (parts.length < 3) return null;
+      const d = parseInt(parts[0]), m = thaiMonths.indexOf(parts[1]), y = parseInt(parts[2]) - 543;
+      return new Date(y, m, d);
+    }
+
+    function renderCalendar() {
+      const daysDiv = document.getElementById('calendarDays');
+      daysDiv.innerHTML = '';
+      const vY = currentViewDate.getFullYear(), vM = currentViewDate.getMonth();
+      document.getElementById('monthTitle').innerText = `${thaiMonths[vM]} ${vY + 543}`;
+
+      let firstDay = new Date(vY, vM, 1).getDay();
+      let startOffset = firstDay === 0 ? 6 : firstDay - 1; 
+
+      const daysInMonth = new Date(vY, vM + 1, 0).getDate();
+      for (let i = 0; i < startOffset; i++) daysDiv.innerHTML += `<div class="cell bg-slate-50/30 border-0"></div>`;
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dObj = new Date(vY, vM, day), dow = dObj.getDay();
+        const isWE = (dow === 0 || dow === 6), isToday = dObj.toDateString() === new Date().toDateString();
+        
+        const dayEvents = otData.filter(it => {
+          const itD = parseThaiDate(it.date);
+          return itD && itD.getDate() === day && itD.getMonth() === vM && itD.getFullYear() === vY;
+        });
+
+        daysDiv.innerHTML += `
+          <div class="cell p-2 ${isToday ? 'today' : ''} ${isWE ? 'weekend' : ''}" onclick="showDetails(${day}, ${vM}, ${vY})">
+            <span class="text-[11px] font-black ${dow === 0 ? 'text-rose-500' : (dow === 6 ? 'text-indigo-500' : 'text-slate-400')}">${day}</span>
+            <div class="mt-2 space-y-1">
+              ${dayEvents.map(ev => {
+                let badgeClass = ev.name.includes('สุกัญญา') ? 'badge-sukanya' : 'badge-oomaree';
+                return `
+                <div class="event-badge ${badgeClass}">
+                  <span class="font-bold">${ev.name.split(' ')[0]}</span> (เวร${ev.shift})
+                  ${ev.timeIn ? `<br><span class="text-[9px] font-normal opacity-80">${ev.timeIn} - ${ev.timeOut}</span>` : ''}
+                </div>`;
+              }).join('')}
+            </div>
+          </div>`;
+      }
+    }
+
+    function showDetails(day, month, year) {
+      const tDate = `${day} ${thaiMonths[month]} ${year + 543}`;
+      const evs = otData.filter(it => it.date === tDate);
+      let html = `<div class="text-center mb-6"><p class="text-teal-600 font-black text-2xl">${tDate}</p></div>`;
+      
+      if(evs.length === 0) {
+        html += `<p class="text-center text-slate-300 py-10 italic">ไม่มีข้อมูลเบิก OT ในวันนี้</p>`;
+      } else {
+        evs.forEach(ev => {
+          let bgClass = ev.name.includes('สุกัญญา') ? 'bg-pink-50' : 'bg-blue-50';
+          let textClass = ev.name.includes('สุกัญญา') ? 'text-pink-700' : 'text-blue-700';
+          
+          html += `
+          <div class="p-6 rounded-[2rem] ${bgClass} border-2 border-white shadow-md mb-4 relative">
+            <p class="font-black text-xl ${textClass}">${ev.name}</p>
+            <div class="mt-2 grid grid-cols-2 gap-2 text-sm text-slate-600 font-medium">
+              <div><span class="text-slate-400 text-xs block">เวรปฏิบัติงาน</span>${ev.shift}</div>
+              <div><span class="text-slate-400 text-xs block">เวลาเข้า-ออก</span>${ev.timeIn || '-'} ถึง ${ev.timeOut || '-'}</div>
+            </div>
+            <div class="mt-4 flex gap-2">
+              ${ev.file1 ? `<a href="${ev.file1}" target="_blank" class="flex-1 bg-white hover:bg-slate-50 text-teal-600 border border-teal-100 text-center py-2 rounded-xl text-xs font-bold shadow-sm transition-all"><i class="fas fa-file-pdf"></i> ไฟล์เคสที่ 1</a>` : ''}
+              ${ev.file2 ? `<a href="${ev.file2}" target="_blank" class="flex-1 bg-white hover:bg-slate-50 text-teal-600 border border-teal-100 text-center py-2 rounded-xl text-xs font-bold shadow-sm transition-all"><i class="fas fa-file-pdf"></i> ไฟล์เคสที่ 2</a>` : ''}
+            </div>
+          </div>`;
+        });
+      }
+      document.getElementById('viewContent').innerHTML = html;
+      openModal('viewModal');
+    }
+
+    function openEditForm() {
+      const vY = currentViewDate.getFullYear(), vM = String(currentViewDate.getMonth() + 1).padStart(2, '0');
+      document.getElementById('otForm').reset();
+      document.getElementById('f_date_raw').value = `${vY}-${vM}-01`; 
+      updateThaiDateDisplay(); 
+      openModal('editModal');
+    }
+
+    function updateThaiDateDisplay() {
+      const val = document.getElementById('f_date_raw').value; if(!val) return;
+      const d = new Date(val); document.getElementById('f_date_thai').value = `${d.getDate()} ${thaiMonths[d.getMonth()]} ${d.getFullYear() + 543}`;
+    }
+
+    // แปลงไฟล์เป็น Base64
+    const toBase64 = file => new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = error => reject(error);
+    });
+
+    async function handleSave(e) {
+      e.preventDefault();
+      Swal.fire({ title: 'กำลังบันทึกและส่งไฟล์...', html: 'กรุณารอสักครู่ (อาจใช้เวลา 10-20 วินาที)', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      
+      const f1 = document.getElementById('f_file1').files[0];
+      const f2 = document.getElementById('f_file2').files[0];
+
+      const payload = { 
+        date: document.getElementById('f_date_thai').value, 
+        name: document.getElementById('f_name').value, 
+        shift: document.getElementById('f_shift').value,
+        timeIn: document.getElementById('f_timeIn').value,
+        timeOut: document.getElementById('f_timeOut').value,
+        file1Data: f1 ? await toBase64(f1) : null,
+        file1Name: f1 ? f1.name : "",
+        file2Data: f2 ? await toBase64(f2) : null,
+        file2Name: f2 ? f2.name : ""
+      };
+      
+      try {
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'saveOT', payload: payload }),
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+        });
+        const result = await response.json();
+        closeModal('editModal');
+        Swal.fire({ icon: 'success', title: 'เสร็จสิ้น', text: result.message, timer: 2000 });
+        fetchData();
+      } catch (error) {
+        Swal.fire("ข้อผิดพลาด", "ไม่สามารถอัปโหลดข้อมูลได้", "error");
+      }
+    }
+
+    function changeMonth(o) { currentViewDate.setMonth(currentViewDate.getMonth() + o); renderCalendar(); }
+    function openModal(id) { document.getElementById(id).classList.remove('hidden'); document.getElementById(id).classList.add('flex'); }
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); document.getElementById(id).classList.remove('flex'); }
+  </script>
+</body>
+</html>
